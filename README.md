@@ -77,11 +77,12 @@ hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon 
   "fontFamily": "",
   "fontSize": 13,
   "radius": 16,
+  "showDelay": 50,
   "theme": "~/.config/stylix/palette.json"
 }
 ```
 
-`scope` picks which windows appear: `output` for the focused monitor, `workspace` for the focused workspace, or `all`. `order` is `recent` for most recently used first, or `workspace` to keep them grouped by workspace number. An empty `fontFamily` uses the system sans-serif.
+`scope` picks which windows appear: `output` for the focused monitor, `workspace` for the focused workspace, or `all`. `order` is `recent` for most recently used first, or `workspace` to keep them grouped by workspace number. An empty `fontFamily` uses the system sans-serif. `showDelay` is how long, in milliseconds, `Super` has to stay held before the strip appears, so a quick tap switches without flashing it. Set it to `0` to show it at once.
 
 `theme` points to any base16 scheme in JSON, such as the `palette.json` that Stylix writes. Without one, hyprglance uses Catppuccin Mocha.
 

@@ -13,6 +13,7 @@ ShellRoot {
   property var windows: []
   property int selected: 0
   property bool open: false
+  property bool shown: false
   property string screenName: ""
 
   Component.onCompleted: {
@@ -40,6 +41,7 @@ ShellRoot {
       property string fontFamily: ""
       property int fontSize: 13
       property int radius: 16
+      property int showDelay: 50
       property string theme: root.configHome + "/stylix/palette.json"
     }
   }
@@ -49,6 +51,13 @@ ShellRoot {
 
     interval: 2000
     onTriggered: configFile.reload()
+  }
+
+  Timer {
+    id: showTimer
+
+    interval: config.showDelay
+    onTriggered: root.shown = true
   }
 
   Scheme {
@@ -118,6 +127,8 @@ ShellRoot {
       ? (active + step + windows.length) % windows.length
       : (step > 0 ? 0 : windows.length - 1)
     screenName = Hyprland.focusedMonitor.name
+    shown = config.showDelay <= 0
+    if (!shown) showTimer.restart()
     open = true
   }
 
@@ -139,7 +150,7 @@ ShellRoot {
       return Math.min(config.thumbnailWidth, Math.floor(available / count))
     }
 
-    visible: root.open
+    visible: root.open && root.shown
     screen: Quickshell.screens.find(s => s.name === root.screenName) ?? null
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
