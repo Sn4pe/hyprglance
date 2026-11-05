@@ -86,7 +86,7 @@ dofile(path).setup({ mod = "ALT", key = "Tab", timeout = 30000, overviewKey = "S
 
 ## Configuration
 
-hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon as the file is saved. Every key is optional; these are the defaults:
+hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon as the file is saved. If that folder did not exist when hyprglance started, restart it once. Every key is optional; these are the defaults:
 
 ```json
 {

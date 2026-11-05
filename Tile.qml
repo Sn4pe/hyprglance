@@ -31,11 +31,8 @@ Rectangle {
   Timer {
     id: iconDelay
 
-    property bool elapsed: false
-
     interval: 150
     running: true
-    onTriggered: elapsed = true
   }
 
   Column {
@@ -69,7 +66,7 @@ Rectangle {
 
       AppIcon {
         anchors.centerIn: parent
-        visible: !preview.hasContent && iconDelay.elapsed
+        visible: !preview.hasContent && !iconDelay.running
         toplevel: tile.toplevel
         size: 48
       }

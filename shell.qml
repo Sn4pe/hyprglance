@@ -24,19 +24,13 @@ ShellRoot {
   property int overviewRevision: 0
   readonly property var layoutEvents: ["openwindow", "movewindowv2", "changefloatingmode", "fullscreen"]
 
-  Component.onCompleted: {
-    Hyprland.refreshToplevels()
-    DesktopEntries.applications
-  }
+  Component.onCompleted: DesktopEntries.applications
 
   FileView {
-    id: configFile
-
     path: root.configHome + "/hyprglance/config.json"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoadFailed: configRetry.start()
 
     JsonAdapter {
       id: config
@@ -66,13 +60,6 @@ ShellRoot {
         property int animation: 200
       }
     }
-  }
-
-  Timer {
-    id: configRetry
-
-    interval: 2000
-    onTriggered: configFile.reload()
   }
 
   Timer {
@@ -134,6 +121,7 @@ ShellRoot {
       } else if (event.name === "closewindow") {
         root.recent = root.recent.filter(a => a !== event.data)
       }
+      if (root.overviewOpen && event.name === "closewindow") layoutRefresh.restart()
       if (root.overviewOpen && root.layoutEvents.includes(event.name)) {
         layoutRefresh.restart()
         root.overviewRevision++
@@ -250,21 +238,13 @@ ShellRoot {
     if (request) Qt.callLater(() => Hyprland.dispatch(request))
   }
 
-  function hideOverviewNow() {
-    if (!overviewOpen && !overviewShown) return
-    overviewOpen = false
-    overviewReady.stop()
-    overviewExpand.stop()
-    overviewPending = ""
-    finishOverviewClose()
-  }
-
   function focusWorkspaceRequest(workspaceId) {
     return `hl.dsp.focus({ workspace = ${workspaceId} })`
   }
 
   function show(step) {
-    hideOverviewNow()
+    closeOverview("")
+    finishOverviewClose()
     windows = candidates()
     Hyprland.refreshToplevels()
     if (windows.length === 0) return
@@ -341,7 +321,6 @@ ShellRoot {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "hyprglance"
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     implicitWidth: strip.width
     implicitHeight: strip.height
 

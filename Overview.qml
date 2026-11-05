@@ -6,6 +6,11 @@ import Quickshell.Hyprland
 PanelWindow {
   id: overview
 
+  component Slide: NumberAnimation {
+    easing.type: Easing.BezierSpline
+    easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1]
+  }
+
   required property HyprlandMonitor monitor
   required property bool keyboard
   required property bool expanded
@@ -17,8 +22,6 @@ PanelWindow {
   signal workspaceChosen(int workspaceId)
   signal workspaceSwitched(int workspaceId)
   signal dismissed
-
-  readonly property var curve: [0.23, 1, 0.32, 1, 1, 1]
 
   property var windows: []
   property int selectedWindow: -1
@@ -182,13 +185,9 @@ PanelWindow {
 
   MouseArea {
     anchors.fill: parent
-    onClicked: overview.dismissed()
-  }
-
-  Item {
-    anchors.fill: parent
     focus: true
     Keys.onPressed: event => overview.handleKey(event)
+    onClicked: overview.dismissed()
   }
 
   Item {
@@ -208,13 +207,7 @@ PanelWindow {
       color: overview.colors.surface
       opacity: overview.expanded ? overview.options.backdrop : 0
 
-      Behavior on opacity {
-        NumberAnimation {
-          duration: overview.options.animation
-          easing.type: Easing.BezierSpline
-          easing.bezierCurve: overview.curve
-        }
-      }
+      Behavior on opacity { Slide { duration: overview.options.animation } }
     }
 
     Item {
@@ -251,41 +244,15 @@ PanelWindow {
           onHovered: overview.selectedWindow = index
           onActivated: overview.windowChosen(modelData)
 
-          Behavior on x {
-            NumberAnimation {
-              duration: overview.options.animation
-              easing.type: Easing.BezierSpline
-              easing.bezierCurve: overview.curve
-            }
-          }
+          Behavior on x { Slide { duration: overview.options.animation } }
 
-          Behavior on y {
-            NumberAnimation {
-              duration: overview.options.animation
-              easing.type: Easing.BezierSpline
-              easing.bezierCurve: overview.curve
-            }
-          }
+          Behavior on y { Slide { duration: overview.options.animation } }
 
-          Behavior on scale {
-            NumberAnimation {
-              duration: overview.options.animation
-              easing.type: Easing.BezierSpline
-              easing.bezierCurve: overview.curve
-            }
-          }
+          Behavior on scale { Slide { duration: overview.options.animation } }
 
-          Behavior on opacity {
-            NumberAnimation {
-              duration: overview.options.animation
-            }
-          }
+          Behavior on opacity { NumberAnimation { duration: overview.options.animation } }
 
-          Behavior on chromeOpacity {
-            NumberAnimation {
-              duration: overview.options.animation
-            }
-          }
+          Behavior on chromeOpacity { NumberAnimation { duration: overview.options.animation } }
         }
       }
     }
@@ -299,11 +266,7 @@ PanelWindow {
       opacity: overview.expanded ? 1 : 0
       spacing: 12
 
-      Behavior on opacity {
-        NumberAnimation {
-          duration: overview.options.animation
-        }
-      }
+      Behavior on opacity { NumberAnimation { duration: overview.options.animation } }
 
       Repeater {
         model: overview.visible ? overview.workspaces : []

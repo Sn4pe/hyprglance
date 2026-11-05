@@ -30,12 +30,6 @@ in
       description = "Written to {file}`$XDG_CONFIG_HOME/hyprglance/config.json`.";
     };
 
-    systemdTarget = lib.mkOption {
-      type = lib.types.str;
-      default = "graphical-session.target";
-      description = "The systemd user target that starts hyprglance.";
-    };
-
     luaModule = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -57,14 +51,14 @@ in
     systemd.user.services.hyprglance = {
       Unit = {
         Description = "hyprglance window switcher";
-        PartOf = [ cfg.systemdTarget ];
-        After = [ cfg.systemdTarget ];
+        PartOf = [ "graphical-session.target" ];
+        After = [ "graphical-session.target" ];
       };
       Service = {
         ExecStart = lib.getExe cfg.package;
         Restart = "on-failure";
       };
-      Install.WantedBy = [ cfg.systemdTarget ];
+      Install.WantedBy = [ "graphical-session.target" ];
     };
   };
 }
