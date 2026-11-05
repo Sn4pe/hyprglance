@@ -12,9 +12,7 @@ stdenvNoCC.mkDerivation {
   src = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
-      ../shell.qml
-      ../Tile.qml
-      ../Scheme.qml
+      (lib.fileset.fileFilter (file: file.hasExt "qml") ../.)
       ../hyprglance.lua
     ];
   };

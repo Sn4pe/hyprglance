@@ -1,5 +1,5 @@
 import QtQuick
-import Quickshell
+import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Hyprland
 
@@ -16,11 +16,11 @@ Rectangle {
   signal hovered
   signal activated
 
-  readonly property string appId: toplevel.lastIpcObject?.class ?? toplevel.wayland?.appId ?? ""
-  readonly property string icon: Quickshell.iconPath(DesktopEntries.heuristicLookup(appId)?.icon ?? appId, true)
-  readonly property int thumbnailHeight: Math.round(thumbnailWidth * 9 / 16)
+  property int thumbnailHeight: Math.round(thumbnailWidth * 9 / 16)
+  property bool fitHeight: false
+  property bool showWorkspace: false
 
-  width: thumbnailWidth + 12
+  width: frame.width + 12
   height: content.height + 12
   radius: settings.radius * 0.6
   color: selected ? colors.raised : "transparent"
@@ -35,31 +35,32 @@ Rectangle {
     spacing: 8
 
     Item {
-      width: tile.thumbnailWidth
-      height: tile.thumbnailHeight
+      id: frame
 
-      Rectangle {
-        anchors.fill: preview
-        visible: preview.hasContent
-        color: tile.colors.surface
-      }
+      width: preview.hasContent ? preview.implicitWidth : tile.thumbnailWidth
+      height: tile.fitHeight && preview.hasContent ? preview.implicitHeight : tile.thumbnailHeight
 
-      ScreencopyView {
-        id: preview
-
+      ClippingRectangle {
         anchors.centerIn: parent
-        captureSource: tile.capturing ? tile.toplevel.wayland : null
-        live: tile.capturing
-        constraintSize: Qt.size(tile.thumbnailWidth, tile.thumbnailHeight)
+        width: preview.implicitWidth
+        height: preview.implicitHeight
+        radius: tile.settings.radius * 0.5
+        color: tile.colors.surface
+
+        ScreencopyView {
+          id: preview
+
+          captureSource: tile.capturing ? tile.toplevel?.wayland ?? null : null
+          live: tile.capturing
+          constraintSize: Qt.size(tile.thumbnailWidth, tile.thumbnailHeight)
+        }
       }
 
-      Image {
+      AppIcon {
         anchors.centerIn: parent
         visible: !preview.hasContent
-        width: 48
-        height: 48
-        sourceSize: Qt.size(48, 48)
-        source: tile.icon
+        toplevel: tile.toplevel
+        size: 48
       }
     }
 
@@ -67,20 +68,28 @@ Rectangle {
       visible: tile.settings.showTitles
       spacing: 6
 
-      Image {
+      AppIcon {
         anchors.verticalCenter: parent.verticalCenter
-        width: 18
-        height: 18
-        sourceSize: Qt.size(18, 18)
-        source: tile.icon
+        toplevel: tile.toplevel
+      }
+
+      Text {
+        id: workspaceLabel
+
+        anchors.verticalCenter: parent.verticalCenter
+        visible: tile.showWorkspace
+        text: tile.toplevel?.workspace?.name ?? ""
+        color: tile.colors.muted
+        font.family: tile.settings.fontFamily || "sans-serif"
+        font.pixelSize: tile.settings.fontSize
       }
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        width: tile.thumbnailWidth - 24
-        text: tile.toplevel.title
+        width: frame.width - 24 - (workspaceLabel.visible ? workspaceLabel.width + 6 : 0)
+        text: tile.toplevel?.title ?? ""
         elide: Text.ElideRight
-        color: tile.selected ? tile.colors.text : tile.colors.muted
+        color: tile.colors.text
         font.family: tile.settings.fontFamily || "sans-serif"
         font.pixelSize: tile.settings.fontSize
       }

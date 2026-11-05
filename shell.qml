@@ -15,6 +15,12 @@ ShellRoot {
   property bool open: false
   property bool shown: false
   property string screenName: ""
+  property bool overviewOpen: false
+  property string overviewScreen: ""
+  property int overviewRevision: 0
+  readonly property var layoutEvents: ["openwindow", "movewindowv2", "changefloatingmode", "fullscreen"]
+
+  onOverviewOpenChanged: overviewRevision++
 
   Component.onCompleted: {
     Hyprland.refreshToplevels()
@@ -37,12 +43,24 @@ ShellRoot {
       property string order: "recent"
       property bool includeCurrent: true
       property int thumbnailWidth: 240
+      property int minThumbnailWidth: 140
       property bool showTitles: true
       property string fontFamily: ""
       property int fontSize: 13
       property int radius: 16
       property int showDelay: 50
       property string theme: root.configHome + "/stylix/palette.json"
+      property JsonObject overview: JsonObject {
+        property string scope: "workspace"
+        property string monitors: "all"
+        property bool workspaces: true
+        property real backdrop: 0.55
+        property int maxThumbnail: 640
+        property int workspaceWidth: 160
+        property var workspaceKeys: ({ "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 })
+        property int margin: 48
+        property int gap: 24
+      }
     }
   }
 
@@ -51,6 +69,13 @@ ShellRoot {
 
     interval: 2000
     onTriggered: configFile.reload()
+  }
+
+  Timer {
+    id: layoutRefresh
+
+    interval: 250
+    onTriggered: Hyprland.refreshToplevels()
   }
 
   Timer {
@@ -75,8 +100,28 @@ ShellRoot {
     }
 
     function onRawEvent(event) {
-      const [name, command] = event.data.split(" ")
-      if (event.name === "custom" && name === "hyprglance") root.handle(command)
+      if (event.name === "custom") {
+        const [name, command] = event.data.split(" ")
+        if (name === "hyprglance") root.handle(command)
+      } else if (event.name === "closewindow") {
+        root.recent = root.recent.filter(a => a !== event.data)
+      }
+      if (root.overviewOpen && root.layoutEvents.includes(event.name)) {
+        layoutRefresh.restart()
+        root.overviewRevision++
+      }
+    }
+  }
+
+  Connections {
+    target: Hyprland.toplevels
+
+    function onValuesChanged() {
+      if (root.overviewOpen) root.overviewRevision++
+      if (!root.open) return
+      root.windows = root.windows.filter(t => t && Hyprland.toplevels.values.includes(t))
+      root.selected = Math.max(0, Math.min(root.selected, root.windows.length - 1))
+      if (root.windows.length === 0) root.open = false
     }
   }
 
@@ -89,6 +134,14 @@ ShellRoot {
       commit()
     } else if (command === "cancel") {
       open = false
+      overviewOpen = false
+    } else if (command === "overview") {
+      open = false
+      if (!overviewOpen) {
+        Hyprland.refreshToplevels()
+        overviewScreen = Hyprland.focusedMonitor.name
+      }
+      overviewOpen = !overviewOpen
     }
   }
 
@@ -98,8 +151,7 @@ ShellRoot {
   }
 
   function activeAddress() {
-    return Hyprland.activeToplevel?.address
-      ?? Hyprland.toplevels.values.find(t => t.lastIpcObject?.focusHistoryID === 0)?.address
+    return Hyprland.toplevels.values.find(t => t.wayland?.activated)?.address
   }
 
   function inScope(toplevel) {
@@ -118,7 +170,33 @@ ShellRoot {
       .sort(config.order === "workspace" ? byWorkspace : byRecency)
   }
 
+  function overviewWindows(monitor) {
+    const byPosition = (a, b) => {
+      const [ax, ay] = a.lastIpcObject?.at ?? [0, 0]
+      const [bx, by] = b.lastIpcObject?.at ?? [0, 0]
+      return a.workspace.id - b.workspace.id || ay - by || ax - bx
+    }
+    return Hyprland.toplevels.values
+      .filter(t => t.monitor?.name === monitor?.name && (t.workspace?.id ?? -1) >= 0)
+      .filter(t => config.overview.scope === "output" || t.workspace === monitor?.activeWorkspace)
+      .sort(byPosition)
+  }
+
+  function focusWindowRequest(toplevel) {
+    return `hl.dsp.focus({ window = "address:0x${toplevel.address}" })`
+  }
+
+  function closeOverviewThen(request) {
+    overviewOpen = false
+    Qt.callLater(() => Hyprland.dispatch(request))
+  }
+
+  function focusWorkspaceRequest(workspaceId) {
+    return `hl.dsp.focus({ workspace = ${workspaceId} })`
+  }
+
   function show(step) {
+    overviewOpen = false
     windows = candidates()
     Hyprland.refreshToplevels()
     if (windows.length === 0) return
@@ -136,7 +214,36 @@ ShellRoot {
     if (!open) return
     const target = windows[selected]
     open = false
-    if (target) Hyprland.dispatch(`hl.dsp.focus({ window = "address:0x${target.address}" })`)
+    if (target) Hyprland.dispatch(focusWindowRequest(target))
+  }
+
+  Variants {
+    model: Quickshell.screens
+
+    Overview {
+      required property ShellScreen modelData
+
+      screen: modelData
+      visible: root.overviewOpen && (config.overview.monitors === "all" || modelData.name === root.overviewScreen)
+      monitor: Hyprland.monitorFor(modelData)
+      keyboard: visible && (config.overview.monitors !== "all" || modelData.name === Hyprland.focusedMonitor?.name)
+      settings: config
+      colors: theme
+      onDismissed: root.overviewOpen = false
+      onWindowChosen: toplevel => root.closeOverviewThen(root.focusWindowRequest(toplevel))
+      onWorkspaceChosen: workspaceId => root.closeOverviewThen(root.focusWorkspaceRequest(workspaceId))
+      onWorkspaceSwitched: workspaceId => {
+        if (root.overviewOpen) root.closeOverviewThen(root.focusWorkspaceRequest(workspaceId))
+      }
+
+      Connections {
+        target: root
+
+        function onOverviewRevisionChanged() {
+          windows = root.overviewOpen ? root.overviewWindows(monitor) : []
+        }
+      }
+    }
   }
 
   PanelWindow {
@@ -144,10 +251,14 @@ ShellRoot {
 
     readonly property int padding: 14
     readonly property int spacing: 8
+    readonly property int available: (screen?.width ?? 1920) * 0.9 - padding * 2
+    readonly property int columns: {
+      const fitting = Math.floor((available + spacing) / (config.minThumbnailWidth + 12 + spacing))
+      return Math.max(1, Math.min(root.windows.length, fitting))
+    }
     readonly property int thumbnailWidth: {
-      const count = Math.max(root.windows.length, 1)
-      const available = (screen?.width ?? 1920) * 0.9 - padding * 2 - (spacing + 12) * count
-      return Math.min(config.thumbnailWidth, Math.floor(available / count))
+      const cell = (available - spacing * (columns - 1)) / columns
+      return Math.min(config.thumbnailWidth, Math.floor(cell) - 12)
     }
 
     visible: root.open && root.shown
@@ -170,11 +281,12 @@ ShellRoot {
       border.width: 1
       border.color: theme.outline
 
-      Row {
+      Grid {
         id: row
 
         x: panel.padding
         y: panel.padding
+        columns: panel.columns
         spacing: panel.spacing
 
         Repeater {
@@ -188,6 +300,7 @@ ShellRoot {
             selected: index === root.selected
             capturing: root.open
             thumbnailWidth: panel.thumbnailWidth
+            showWorkspace: config.scope !== "workspace"
             settings: config
             colors: theme
             onHovered: root.selected = index

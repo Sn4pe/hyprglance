@@ -1,9 +1,9 @@
 local M = {}
 
 local MODIFIER_KEYCODES = {
-  SUPER = { 125, 126, 133, 134 },
-  ALT = { 56, 100, 64, 108 },
-  CTRL = { 29, 97, 37, 105 },
+  SUPER = { 133, 134 },
+  ALT = { 64, 108 },
+  CTRL = { 37, 105 },
 }
 
 local SUBMAP = "hyprglance"
@@ -19,18 +19,20 @@ end
 
 function M.setup(opts)
   opts = opts or {}
-  local mod = opts.mod or "SUPER"
+  local mod = (opts.mod or "SUPER"):upper()
+  local keycodes = MODIFIER_KEYCODES[mod] or error("hyprglance: mod must be SUPER, ALT or CTRL")
   local key = opts.key or "Tab"
   local timeout = opts.timeout or 30000
+  local overviewKey = opts.overviewKey == nil and "F3" or opts.overviewKey
 
   local released = {}
-  for _, code in ipairs(MODIFIER_KEYCODES[mod]) do
+  for _, code in ipairs(keycodes) do
     released[code] = true
   end
 
   hl.define_submap(SUBMAP, function()
-    hl.bind(mod .. " + " .. key, function() send("next") end)
-    hl.bind(mod .. " + SHIFT + " .. key, function() send("prev") end)
+    hl.bind(mod .. " + " .. key, function() send("next") end, { repeating = true })
+    hl.bind(mod .. " + SHIFT + " .. key, function() send("prev") end, { repeating = true })
     hl.bind(mod .. " + Escape", function() close("cancel") end)
     hl.bind("Escape", function() close("cancel") end)
   end)
@@ -53,6 +55,12 @@ function M.setup(opts)
 
   hl.bind(mod .. " + " .. key, function() open("next") end)
   hl.bind(mod .. " + SHIFT + " .. key, function() open("prev") end)
+
+  hl.layer_rule({ name = "hyprglance-overview", match = { namespace = "^hyprglance-overview$" }, blur = true })
+
+  if overviewKey then
+    hl.bind(overviewKey, function() send("overview") end)
+  end
 end
 
 return M
