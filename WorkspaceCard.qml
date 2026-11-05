@@ -9,6 +9,7 @@ Column {
   required property HyprlandMonitor monitor
   required property real screenWidth
   required property real screenHeight
+  required property var closing
   required property bool selected
   required property int cardWidth
   required property var settings
@@ -60,7 +61,7 @@ Column {
           id: thumbnail
 
           anchors.fill: parent
-          captureSource: parent.modelData.wayland
+          captureSource: card.closing.includes(parent.modelData.address) ? null : parent.modelData.wayland
           constraintSize: Qt.size(parent.width, parent.height)
           live: settling.running || !hasContent
         }

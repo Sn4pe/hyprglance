@@ -8,6 +8,16 @@ local MODIFIER_KEYCODES = {
 
 local SUBMAP = "hyprglance"
 
+function HYPRGLANCE_UNDIM(undim)
+  if undim and HYPRGLANCE_DIM == nil then
+    HYPRGLANCE_DIM = hl.get_config("decoration.dim_inactive")
+    hl.config({ decoration = { dim_inactive = false } })
+  elseif not undim and HYPRGLANCE_DIM ~= nil then
+    hl.config({ decoration = { dim_inactive = HYPRGLANCE_DIM } })
+    HYPRGLANCE_DIM = nil
+  end
+end
+
 local function send(command)
   hl.dispatch(hl.dsp.event("hyprglance " .. command))
 end
@@ -24,6 +34,7 @@ function M.setup(opts)
   local key = opts.key or "Tab"
   local timeout = opts.timeout or 30000
   local overviewKey = opts.overviewKey == nil and "F3" or opts.overviewKey
+  local closeKey = opts.closeKey == nil and "Q" or opts.closeKey
 
   local released = {}
   for _, code in ipairs(keycodes) do
@@ -35,6 +46,9 @@ function M.setup(opts)
     hl.bind(mod .. " + SHIFT + " .. key, function() send("prev") end, { repeating = true })
     hl.bind(mod .. " + Escape", function() close("cancel") end)
     hl.bind("Escape", function() close("cancel") end)
+    if closeKey then
+      hl.bind(mod .. " + " .. closeKey, function() send("close") end)
+    end
   end)
 
   if HYPRGLANCE_RELEASE then HYPRGLANCE_RELEASE:remove() end

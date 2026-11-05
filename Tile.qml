@@ -15,6 +15,7 @@ Rectangle {
 
   signal hovered
   signal activated
+  signal closeRequested
 
   property int thumbnailHeight: Math.round(thumbnailWidth * 9 / 16)
   property bool exactFrame: false
@@ -109,6 +110,7 @@ Rectangle {
     anchors.fill: parent
     hoverEnabled: true
     onPositionChanged: tile.hovered()
-    onClicked: tile.activated()
+    acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+    onClicked: mouse => mouse.button === Qt.MiddleButton ? tile.closeRequested() : tile.activated()
   }
 }

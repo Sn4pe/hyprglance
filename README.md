@@ -73,15 +73,16 @@ dofile(os.getenv("HOME") .. "/src/hyprglance/hyprglance.lua").setup()
 
 - `Super + Tab` / `Super + Shift + Tab`: open, then move forward or back. Hold `Tab` to keep moving
 - Release `Super`: switch to the selected window
-- Click: switch to that window
+- Click: switch to that window. Middle click: close it
+- `Super + Q` while the switcher is open: close the selected window
 - `Escape`: close without switching
 - `F3`: open or close the overview. Click a window or a workspace to go there, or anywhere else to close it
-- In the overview, number keys jump to a workspace, `Left` and `Right` walk the workspace row, `Tab` and `Shift + Tab` walk the windows, and `Enter` goes to the selection
+- In the overview, number keys jump to a workspace, `Left` and `Right` walk the workspace row, `Tab` and `Shift + Tab` walk the windows, `Enter` goes to the selection, and `Q` closes the selected window
 
-`setup()` takes the modifier (`SUPER`, `ALT` or `CTRL`), the key, a safety timeout after which an open switcher closes itself, and the overview key (`false` leaves it unbound):
+`setup()` takes the modifier (`SUPER`, `ALT` or `CTRL`), the key, a safety timeout after which an open switcher closes itself, and the overview key and the key that closes the selected window (`false` leaves either unbound):
 
 ```lua
-dofile(path).setup({ mod = "ALT", key = "Tab", timeout = 30000, overviewKey = "SUPER + F3" })
+dofile(path).setup({ mod = "ALT", key = "Tab", timeout = 30000, overviewKey = "SUPER + F3", closeKey = "W" })
 ```
 
 ## Configuration
@@ -107,6 +108,7 @@ hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon 
     "monitors": "all",
     "workspaces": true,
     "backdrop": 0.55,
+    "undim": true,
     "maxThumbnail": 640,
     "workspaceWidth": 160,
     "workspaceKeys": { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 },
@@ -119,7 +121,7 @@ hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon 
 
 `scope` picks which windows appear: `output` for the focused monitor, `workspace` for the focused workspace, or `all`. `order` is `recent` for most recently used first, or `workspace` to keep them grouped by workspace number. When previews would get narrower than `minThumbnailWidth`, the strip wraps onto another row. An empty `fontFamily` uses the system sans-serif. `showDelay` is how long, in milliseconds, `Super` has to stay held before the strip appears, so a quick tap switches without flashing it. Set it to `0` to show it at once.
 
-In the overview, `scope` is `workspace` for the windows on each monitor's current workspace, or `output` for every window on that monitor. `monitors` is `all` to open on every monitor, or `focused` for only the current one. `workspaces` toggles the workspace row. `layout` is `real` to keep the windows arranged as they are on screen, or `grid` for a grid. `real` only applies with `scope` set to `workspace`, and falls back to a grid when windows overlap. `animation` is how long, in milliseconds, windows take to travel between their place on screen and the overview; `0` turns it off. `backdrop` is how opaque the veil over your desktop is, from `0` to `1`, and `maxThumbnail` caps the width of a preview in pixels. `workspaceWidth` sets the width of each workspace miniature, and `workspaceKeys` maps number keys to workspaces: set it to match your own keybindings if `Super + N` does not go to workspace `N`.
+In the overview, `scope` is `workspace` for the windows on each monitor's current workspace, or `output` for every window on that monitor. `monitors` is `all` to open on every monitor, or `focused` for only the current one. `workspaces` toggles the workspace row. `layout` is `real` to keep the windows arranged as they are on screen, or `grid` for a grid. `real` only applies with `scope` set to `workspace`, and falls back to a grid when windows overlap. `animation` is how long, in milliseconds, windows take to travel between their place on screen and the overview; `0` turns it off. `backdrop` is how opaque the veil over your desktop is, from `0` to `1`. `undim` turns off `decoration:dim_inactive` while the overview is open, so previews are not greyed out, and restores it afterwards. `maxThumbnail` caps the width of a preview in pixels. `workspaceWidth` sets the width of each workspace miniature, and `workspaceKeys` maps number keys to workspaces: set it to match your own keybindings if `Super + N` does not go to workspace `N`.
 
 `theme` points to any base16 scheme in JSON, such as the `palette.json` that Stylix writes. Without one, hyprglance uses Catppuccin Mocha.
 

@@ -13,12 +13,14 @@ PanelWindow {
 
   required property HyprlandMonitor monitor
   required property bool keyboard
+  required property var closing
   required property bool expanded
   required property bool fading
   required property var settings
   required property Scheme colors
 
   signal windowChosen(HyprlandToplevel toplevel)
+  signal windowCloseRequested(HyprlandToplevel toplevel)
   signal workspaceChosen(int workspaceId)
   signal workspaceSwitched(int workspaceId)
   signal dismissed
@@ -43,6 +45,7 @@ PanelWindow {
     if (event.key === Qt.Key_Escape) dismissed()
     else if (event.key === Qt.Key_Left) moveCursor(-1)
     else if (event.key === Qt.Key_Right) moveCursor(1)
+    else if (event.key === Qt.Key_Q) windowCloseRequested(windows[selectedWindow] ?? null)
     else if (event.key === Qt.Key_Tab) moveWindowSelection(1)
     else if (event.key === Qt.Key_Backtab) moveWindowSelection(-1)
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -170,6 +173,8 @@ PanelWindow {
   WlrLayershell.namespace: "hyprglance-overview"
   WlrLayershell.keyboardFocus: keyboard ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+  onWindowsChanged: selectedWindow = Math.min(selectedWindow, windows.length - 1)
+
   onVisibleChanged: {
     selectedWindow = -1
     cursor = Math.max(0, workspaces.findIndex(w => w.id === monitor?.activeWorkspace?.id))
@@ -228,7 +233,7 @@ PanelWindow {
 
           toplevel: modelData
           selected: index === overview.selectedWindow
-          capturing: overview.visible
+          capturing: overview.visible && !overview.closing.includes(modelData.address)
           exactFrame: true
           thumbnailWidth: slot?.previewWidth ?? 1
           thumbnailHeight: slot?.previewHeight ?? 1
@@ -243,6 +248,7 @@ PanelWindow {
           chromeOpacity: overview.expanded ? 1 : 0
           onHovered: overview.selectedWindow = index
           onActivated: overview.windowChosen(modelData)
+          onCloseRequested: overview.windowCloseRequested(modelData)
 
           Behavior on x { Slide { duration: overview.options.animation } }
 
@@ -279,6 +285,7 @@ PanelWindow {
           monitor: overview.monitor
           screenWidth: overview.screenWidth
           screenHeight: overview.screenHeight
+          closing: overview.closing
           selected: overview.keyboard && index === overview.cursor
           cardWidth: overview.options.workspaceWidth
           settings: overview.settings

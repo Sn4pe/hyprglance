@@ -9,6 +9,39 @@ ShellRoot {
 
   readonly property string configHome: Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config"
 
+  readonly property var defaults: ({
+    scope: "output",
+    order: "recent",
+    includeCurrent: true,
+    thumbnailWidth: 240,
+    minThumbnailWidth: 140,
+    showTitles: true,
+    fontFamily: "",
+    fontSize: 13,
+    radius: 16,
+    showDelay: 50,
+    theme: root.configHome + "/stylix/palette.json",
+    overview: {
+      scope: "workspace",
+      layout: "real",
+      monitors: "all",
+      workspaces: true,
+      backdrop: 0.55,
+      undim: true,
+      maxThumbnail: 640,
+      workspaceWidth: 160,
+      workspaceKeys: { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 },
+      margin: 48,
+      gap: 24,
+      animation: 200
+    }
+  })
+  property var userConfig: ({})
+  readonly property var config: Object.assign({}, defaults, userConfig, {
+    overview: Object.assign({}, defaults.overview, userConfig.overview)
+  })
+
+  property var closing: []
   property var recent: []
   property var windows: []
   property int selected: 0
@@ -24,42 +57,38 @@ ShellRoot {
   property int overviewRevision: 0
   readonly property var layoutEvents: ["openwindow", "movewindowv2", "changefloatingmode", "fullscreen"]
 
-  Component.onCompleted: DesktopEntries.applications
+  Component.onCompleted: {
+    DesktopEntries.applications
+    setUndim(false)
+  }
 
   FileView {
     path: root.configHome + "/hyprglance/config.json"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-
-    JsonAdapter {
-      id: config
-
-      property string scope: "output"
-      property string order: "recent"
-      property bool includeCurrent: true
-      property int thumbnailWidth: 240
-      property int minThumbnailWidth: 140
-      property bool showTitles: true
-      property string fontFamily: ""
-      property int fontSize: 13
-      property int radius: 16
-      property int showDelay: 50
-      property string theme: root.configHome + "/stylix/palette.json"
-      property JsonObject overview: JsonObject {
-        property string scope: "workspace"
-        property string layout: "real"
-        property string monitors: "all"
-        property bool workspaces: true
-        property real backdrop: 0.55
-        property int maxThumbnail: 640
-        property int workspaceWidth: 160
-        property var workspaceKeys: ({ "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 })
-        property int margin: 48
-        property int gap: 24
-        property int animation: 200
+    onLoaded: {
+      try {
+        root.userConfig = JSON.parse(text())
+      } catch (error) {
+        console.warn("hyprglance: invalid config.json:", error)
       }
     }
+    onLoadFailed: root.userConfig = {}
+  }
+
+  Timer {
+    id: closeDispatch
+
+    interval: 60
+    onTriggered: root.closing.forEach(address => Hyprland.dispatch(`hl.dsp.window.close({ window = "address:0x${address}" })`))
+  }
+
+  Timer {
+    id: closeResume
+
+    interval: 1500
+    onTriggered: root.closing = []
   }
 
   Timer {
@@ -148,6 +177,8 @@ ShellRoot {
       else show(step)
     } else if (command === "commit") {
       commit()
+    } else if (command === "close") {
+      if (open) closeWindow(windows[selected])
     } else if (command === "cancel") {
       open = false
       closeOverview("")
@@ -195,11 +226,23 @@ ShellRoot {
       .sort(byPosition)
   }
 
+  function closeWindow(toplevel) {
+    if (!toplevel || closing.includes(toplevel.address)) return
+    closing = closing.concat(toplevel.address)
+    closeDispatch.restart()
+    closeResume.restart()
+  }
+
   function focusWindowRequest(toplevel) {
     return `hl.dsp.focus({ window = "address:0x${toplevel.address}" })`
   }
 
+  function setUndim(undim) {
+    if (config.overview.undim || !undim) Hyprland.dispatch(`function() HYPRGLANCE_UNDIM(${undim}) end`)
+  }
+
   function openOverview() {
+    setUndim(true)
     overviewOpen = true
     overviewScreen = Hyprland.focusedMonitor.name
     overviewPending = ""
@@ -228,6 +271,7 @@ ShellRoot {
   }
 
   function finishOverviewClose() {
+    setUndim(false)
     overviewClose.stop()
     overviewShown = false
     overviewExpanded = false
@@ -274,12 +318,14 @@ ShellRoot {
       screen: modelData
       visible: root.overviewShown && (config.overview.monitors === "all" || modelData.name === root.overviewScreen)
       monitor: Hyprland.monitorFor(modelData)
+      closing: root.closing
       expanded: root.overviewExpanded
       fading: root.overviewFading
       keyboard: visible && (config.overview.monitors !== "all" || modelData.name === Hyprland.focusedMonitor?.name)
       settings: config
       colors: theme
       onDismissed: root.closeOverview("")
+      onWindowCloseRequested: toplevel => root.closeWindow(toplevel)
       onWindowChosen: toplevel => {
         const visibleNow = toplevel.workspace === toplevel.monitor?.activeWorkspace
         root.closeOverview(root.focusWindowRequest(toplevel), !visibleNow)
@@ -351,12 +397,13 @@ ShellRoot {
 
             toplevel: modelData
             selected: index === root.selected
-            capturing: root.open
+            capturing: root.open && !root.closing.includes(modelData.address)
             thumbnailWidth: panel.thumbnailWidth
             showWorkspace: config.scope !== "workspace"
             settings: config
             colors: theme
             onHovered: root.selected = index
+            onCloseRequested: root.closeWindow(modelData)
             onActivated: {
               root.selected = index
               root.commit()
