@@ -17,10 +17,12 @@ ShellRoot {
   property string screenName: ""
   property bool overviewOpen: false
   property string overviewScreen: ""
+  property bool overviewShown: false
+  property bool overviewExpanded: false
+  property bool overviewFading: false
+  property string overviewPending: ""
   property int overviewRevision: 0
   readonly property var layoutEvents: ["openwindow", "movewindowv2", "changefloatingmode", "fullscreen"]
-
-  onOverviewOpenChanged: overviewRevision++
 
   Component.onCompleted: {
     Hyprland.refreshToplevels()
@@ -52,6 +54,7 @@ ShellRoot {
       property string theme: root.configHome + "/stylix/palette.json"
       property JsonObject overview: JsonObject {
         property string scope: "workspace"
+        property string layout: "real"
         property string monitors: "all"
         property bool workspaces: true
         property real backdrop: 0.55
@@ -60,6 +63,7 @@ ShellRoot {
         property var workspaceKeys: ({ "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 })
         property int margin: 48
         property int gap: 24
+        property int animation: 200
       }
     }
   }
@@ -69,6 +73,30 @@ ShellRoot {
 
     interval: 2000
     onTriggered: configFile.reload()
+  }
+
+  Timer {
+    id: overviewReady
+
+    interval: 20
+    onTriggered: {
+      root.overviewShown = true
+      root.overviewRevision++
+      overviewExpand.restart()
+    }
+  }
+
+  Timer {
+    id: overviewExpand
+
+    interval: 40
+    onTriggered: root.overviewExpanded = root.overviewOpen
+  }
+
+  Timer {
+    id: overviewClose
+
+    onTriggered: root.finishOverviewClose()
   }
 
   Timer {
@@ -134,14 +162,11 @@ ShellRoot {
       commit()
     } else if (command === "cancel") {
       open = false
-      overviewOpen = false
+      closeOverview("")
     } else if (command === "overview") {
       open = false
-      if (!overviewOpen) {
-        Hyprland.refreshToplevels()
-        overviewScreen = Hyprland.focusedMonitor.name
-      }
-      overviewOpen = !overviewOpen
+      if (overviewOpen) closeOverview("")
+      else openOverview()
     }
   }
 
@@ -186,9 +211,52 @@ ShellRoot {
     return `hl.dsp.focus({ window = "address:0x${toplevel.address}" })`
   }
 
-  function closeOverviewThen(request) {
+  function openOverview() {
+    overviewOpen = true
+    overviewScreen = Hyprland.focusedMonitor.name
+    overviewPending = ""
+    if (overviewShown) {
+      overviewClose.stop()
+      overviewFading = false
+      overviewExpanded = true
+      return
+    }
+    Hyprland.refreshToplevels()
+    overviewReady.restart()
+  }
+
+  function closeOverview(request, fade = false) {
+    if (!overviewOpen) return
     overviewOpen = false
-    Qt.callLater(() => Hyprland.dispatch(request))
+    overviewReady.stop()
+    overviewExpand.stop()
+    overviewPending = request
+    const duration = fade ? Math.min(100, config.overview.animation) : config.overview.animation
+    if (!overviewShown || duration <= 0) return finishOverviewClose()
+    if (fade) overviewFading = true
+    else overviewExpanded = false
+    overviewClose.interval = fade ? duration : duration * 0.7
+    overviewClose.restart()
+  }
+
+  function finishOverviewClose() {
+    overviewClose.stop()
+    overviewShown = false
+    overviewExpanded = false
+    overviewFading = false
+    overviewRevision++
+    const request = overviewPending
+    overviewPending = ""
+    if (request) Qt.callLater(() => Hyprland.dispatch(request))
+  }
+
+  function hideOverviewNow() {
+    if (!overviewOpen && !overviewShown) return
+    overviewOpen = false
+    overviewReady.stop()
+    overviewExpand.stop()
+    overviewPending = ""
+    finishOverviewClose()
   }
 
   function focusWorkspaceRequest(workspaceId) {
@@ -196,7 +264,7 @@ ShellRoot {
   }
 
   function show(step) {
-    overviewOpen = false
+    hideOverviewNow()
     windows = candidates()
     Hyprland.refreshToplevels()
     if (windows.length === 0) return
@@ -224,23 +292,29 @@ ShellRoot {
       required property ShellScreen modelData
 
       screen: modelData
-      visible: root.overviewOpen && (config.overview.monitors === "all" || modelData.name === root.overviewScreen)
+      visible: root.overviewShown && (config.overview.monitors === "all" || modelData.name === root.overviewScreen)
       monitor: Hyprland.monitorFor(modelData)
+      expanded: root.overviewExpanded
+      fading: root.overviewFading
       keyboard: visible && (config.overview.monitors !== "all" || modelData.name === Hyprland.focusedMonitor?.name)
       settings: config
       colors: theme
-      onDismissed: root.overviewOpen = false
-      onWindowChosen: toplevel => root.closeOverviewThen(root.focusWindowRequest(toplevel))
-      onWorkspaceChosen: workspaceId => root.closeOverviewThen(root.focusWorkspaceRequest(workspaceId))
-      onWorkspaceSwitched: workspaceId => {
-        if (root.overviewOpen) root.closeOverviewThen(root.focusWorkspaceRequest(workspaceId))
+      onDismissed: root.closeOverview("")
+      onWindowChosen: toplevel => {
+        const visibleNow = toplevel.workspace === toplevel.monitor?.activeWorkspace
+        root.closeOverview(root.focusWindowRequest(toplevel), !visibleNow)
       }
+      onWorkspaceChosen: workspaceId => {
+        const current = workspaceId === monitor?.activeWorkspace?.id
+        root.closeOverview(root.focusWorkspaceRequest(workspaceId), !current)
+      }
+      onWorkspaceSwitched: workspaceId => root.closeOverview(root.focusWorkspaceRequest(workspaceId), true)
 
       Connections {
         target: root
 
         function onOverviewRevisionChanged() {
-          windows = root.overviewOpen ? root.overviewWindows(monitor) : []
+          windows = root.overviewShown ? root.overviewWindows(monitor) : []
         }
       }
     }

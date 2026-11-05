@@ -17,15 +17,26 @@ Rectangle {
   signal activated
 
   property int thumbnailHeight: Math.round(thumbnailWidth * 9 / 16)
-  property bool fitHeight: false
+  property bool exactFrame: false
+  property real chromeOpacity: 1
   property bool showWorkspace: false
 
   width: frame.width + 12
   height: content.height + 12
   radius: settings.radius * 0.6
-  color: selected ? colors.raised : "transparent"
-  border.width: selected ? 1 : 0
+  color: selected && chromeOpacity === 1 ? colors.raised : "transparent"
+  border.width: selected && chromeOpacity === 1 ? 1 : 0
   border.color: colors.accent
+
+  Timer {
+    id: iconDelay
+
+    property bool elapsed: false
+
+    interval: 150
+    running: true
+    onTriggered: elapsed = true
+  }
 
   Column {
     id: content
@@ -37,8 +48,8 @@ Rectangle {
     Item {
       id: frame
 
-      width: preview.hasContent ? preview.implicitWidth : tile.thumbnailWidth
-      height: tile.fitHeight && preview.hasContent ? preview.implicitHeight : tile.thumbnailHeight
+      width: !tile.exactFrame && preview.hasContent ? preview.implicitWidth : tile.thumbnailWidth
+      height: tile.thumbnailHeight
 
       ClippingRectangle {
         anchors.centerIn: parent
@@ -58,7 +69,7 @@ Rectangle {
 
       AppIcon {
         anchors.centerIn: parent
-        visible: !preview.hasContent
+        visible: !preview.hasContent && iconDelay.elapsed
         toplevel: tile.toplevel
         size: 48
       }
@@ -66,6 +77,7 @@ Rectangle {
 
     Row {
       visible: tile.settings.showTitles
+      opacity: tile.chromeOpacity
       spacing: 6
 
       AppIcon {

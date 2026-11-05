@@ -103,6 +103,7 @@ hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon 
   "theme": "~/.config/stylix/palette.json",
   "overview": {
     "scope": "workspace",
+    "layout": "real",
     "monitors": "all",
     "workspaces": true,
     "backdrop": 0.55,
@@ -110,21 +111,22 @@ hyprglance reads `~/.config/hyprglance/config.json` and applies changes as soon 
     "workspaceWidth": 160,
     "workspaceKeys": { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 },
     "margin": 48,
-    "gap": 24
+    "gap": 24,
+    "animation": 200
   }
 }
 ```
 
 `scope` picks which windows appear: `output` for the focused monitor, `workspace` for the focused workspace, or `all`. `order` is `recent` for most recently used first, or `workspace` to keep them grouped by workspace number. When previews would get narrower than `minThumbnailWidth`, the strip wraps onto another row. An empty `fontFamily` uses the system sans-serif. `showDelay` is how long, in milliseconds, `Super` has to stay held before the strip appears, so a quick tap switches without flashing it. Set it to `0` to show it at once.
 
-In the overview, `scope` is `workspace` for the windows on each monitor's current workspace, or `output` for every window on that monitor. `monitors` is `all` to open on every monitor, or `focused` for only the current one. `workspaces` toggles the workspace row. `backdrop` is how opaque the veil over your desktop is, from `0` to `1`, and `maxThumbnail` caps the width of a preview in pixels. `workspaceWidth` sets the width of each workspace miniature, and `workspaceKeys` maps number keys to workspaces: set it to match your own keybindings if `Super + N` does not go to workspace `N`.
+In the overview, `scope` is `workspace` for the windows on each monitor's current workspace, or `output` for every window on that monitor. `monitors` is `all` to open on every monitor, or `focused` for only the current one. `workspaces` toggles the workspace row. `layout` is `real` to keep the windows arranged as they are on screen, or `grid` for a grid. `real` only applies with `scope` set to `workspace`, and falls back to a grid when windows overlap. `animation` is how long, in milliseconds, windows take to travel between their place on screen and the overview; `0` turns it off. `backdrop` is how opaque the veil over your desktop is, from `0` to `1`, and `maxThumbnail` caps the width of a preview in pixels. `workspaceWidth` sets the width of each workspace miniature, and `workspaceKeys` maps number keys to workspaces: set it to match your own keybindings if `Super + N` does not go to workspace `N`.
 
 `theme` points to any base16 scheme in JSON, such as the `palette.json` that Stylix writes. Without one, hyprglance uses Catppuccin Mocha.
 
 ## Roadmap
 
 - A settings window
-- Overview: windows placed where they sit on screen, dragging windows between workspaces
+- Overview: dragging windows between workspaces
 - Support for `hyprland.conf`
 
 ## License
