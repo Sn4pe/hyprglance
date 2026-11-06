@@ -14,10 +14,12 @@ Column {
   required property int cardWidth
   required property var settings
   required property Scheme colors
+  required property var dropRect
 
   signal hovered
   signal activated
 
+  readonly property int dropId: workspace.id
   readonly property bool current: workspace.id === monitor?.activeWorkspace?.id
   readonly property real ratio: cardWidth / screenWidth
 
@@ -73,6 +75,18 @@ Column {
           size: 20
         }
       }
+    }
+
+    Rectangle {
+      visible: card.dropRect !== null
+      x: (card.dropRect?.x ?? 0) * card.ratio
+      y: (card.dropRect?.y ?? 0) * card.ratio
+      width: (card.dropRect?.width ?? 0) * card.ratio
+      height: (card.dropRect?.height ?? 0) * card.ratio
+      radius: 2
+      color: Qt.alpha(card.colors.accent, 0.5)
+      border.width: 1
+      border.color: card.colors.accent
     }
 
     MouseArea {

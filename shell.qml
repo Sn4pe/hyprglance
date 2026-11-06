@@ -11,6 +11,7 @@ ShellRoot {
 
   readonly property var defaults: ({
     scope: "output",
+    appScope: "all",
     order: "recent",
     includeCurrent: true,
     thumbnailWidth: 240,
@@ -26,8 +27,11 @@ ShellRoot {
       layout: "real",
       monitors: "all",
       workspaces: true,
+      showEmpty: "drag",
       backdrop: 0.55,
       undim: true,
+      drag: true,
+      dropPreview: true,
       maxThumbnail: 640,
       workspaceWidth: 160,
       workspaceKeys: { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "0": 10 },
@@ -55,6 +59,10 @@ ShellRoot {
   property bool overviewFading: false
   property string overviewPending: ""
   property int overviewRevision: 0
+  property var dragWindow: null
+  property point dragPoint
+  property string keyboardScreen: ""
+  property string layoutName: ""
   readonly property var layoutEvents: ["openwindow", "movewindowv2", "changefloatingmode", "fullscreen"]
 
   Component.onCompleted: {
@@ -116,6 +124,13 @@ ShellRoot {
   }
 
   Timer {
+    id: keyboardHold
+
+    interval: 150
+    onTriggered: if (!root.dragWindow) root.keyboardScreen = Hyprland.focusedMonitor?.name ?? ""
+  }
+
+  Timer {
     id: layoutRefresh
 
     interval: 250
@@ -138,6 +153,12 @@ ShellRoot {
   Connections {
     target: Hyprland
 
+    function onFocusedMonitorChanged() {
+      if (keyboardHold.running || root.dragWindow) return
+      root.keyboardScreen = Hyprland.focusedMonitor?.name ?? ""
+      keyboardHold.restart()
+    }
+
     function onActiveToplevelChanged() {
       const address = Hyprland.activeToplevel?.address
       if (address) root.recent = [address].concat(root.recent.filter(a => a !== address))
@@ -152,6 +173,7 @@ ShellRoot {
       }
       if (root.overviewOpen && event.name === "closewindow") layoutRefresh.restart()
       if (root.overviewOpen && root.layoutEvents.includes(event.name)) {
+        Hyprland.refreshToplevels()
         layoutRefresh.restart()
         root.overviewRevision++
       }
@@ -171,10 +193,14 @@ ShellRoot {
   }
 
   function handle(command) {
-    if (command === "next" || command === "prev") {
-      const step = command === "next" ? 1 : -1
+    if (command.startsWith("layout-")) {
+      layoutName = command.slice(7)
+    } else if (["next", "prev", "app-next", "app-prev"].includes(command)) {
+      const step = command.endsWith("next") ? 1 : -1
       if (open) selected = (selected + step + windows.length) % windows.length
-      else show(step)
+      else if (!command.startsWith("app-")) show(step)
+      else if (activeWindow()) show(step, activeWindow().wayland.appId)
+      else leaveSubmap()
     } else if (command === "commit") {
       commit()
     } else if (command === "close") {
@@ -194,8 +220,12 @@ ShellRoot {
     return index >= 0 ? index : 1000 + (toplevel.lastIpcObject?.focusHistoryID ?? 999)
   }
 
+  function activeWindow() {
+    return Hyprland.toplevels.values.find(t => t.wayland?.activated)
+  }
+
   function activeAddress() {
-    return Hyprland.toplevels.values.find(t => t.wayland?.activated)?.address
+    return activeWindow()?.address
   }
 
   function inScope(toplevel) {
@@ -204,13 +234,15 @@ ShellRoot {
     return toplevel.monitor === Hyprland.focusedMonitor
   }
 
-  function candidates() {
+  function candidates(appId) {
     const active = activeAddress()
     const byRecency = (a, b) => recency(a) - recency(b)
     const byWorkspace = (a, b) => a.workspace.id - b.workspace.id || byRecency(a, b)
     return Hyprland.toplevels.values
-      .filter(t => (t.workspace?.id ?? -1) >= 0 && inScope(t))
-      .filter(t => config.includeCurrent || t.address !== active)
+      .filter(t => (t.workspace?.id ?? -1) >= 0)
+      .filter(t => appId && config.appScope === "all" || inScope(t))
+      .filter(t => !appId || t.wayland?.appId === appId)
+      .filter(t => appId || config.includeCurrent || t.address !== active)
       .sort(config.order === "workspace" ? byWorkspace : byRecency)
   }
 
@@ -233,6 +265,18 @@ ShellRoot {
     closeResume.restart()
   }
 
+  function dropWindow() {
+    const toplevel = dragWindow
+    const target = overviews.instances.find(o => o.dropWorkspace > 0)
+    const workspaceId = target?.dropWorkspace
+    dragWindow = null
+    keyboardHold.restart()
+    if (!toplevel || !target || workspaceId === toplevel.workspace?.id) return
+    const created = !Hyprland.workspaces.values.some(w => w.id === workspaceId)
+    const place = created ? `hl.dispatch(hl.dsp.workspace.move({ workspace = ${workspaceId}, monitor = "${target.monitor.name}" }))` : ""
+    Hyprland.dispatch(`function() hl.dispatch(hl.dsp.window.move({ workspace = ${workspaceId}, follow = false, window = "address:0x${toplevel.address}" })) ${place} end`)
+  }
+
   function focusWindowRequest(toplevel) {
     return `hl.dsp.focus({ window = "address:0x${toplevel.address}" })`
   }
@@ -245,6 +289,7 @@ ShellRoot {
     setUndim(true)
     overviewOpen = true
     overviewScreen = Hyprland.focusedMonitor.name
+    keyboardScreen = overviewScreen
     overviewPending = ""
     if (overviewShown) {
       overviewClose.stop()
@@ -252,6 +297,8 @@ ShellRoot {
       overviewExpanded = true
       return
     }
+    Hyprland.dispatch(`function() hl.dispatch(hl.dsp.event("hyprglance layout-" .. hl.get_config("general.layout"))) end`)
+    Hyprland.refreshMonitors()
     Hyprland.refreshToplevels()
     overviewReady.restart()
   }
@@ -286,12 +333,17 @@ ShellRoot {
     return `hl.dsp.focus({ workspace = ${workspaceId} })`
   }
 
-  function show(step) {
+  function leaveSubmap() {
+    Hyprland.dispatch(`hl.dsp.submap("reset")`)
+  }
+
+  function show(step, appId = "") {
+    const found = candidates(appId)
+    Hyprland.refreshToplevels()
+    if (found.length < (appId ? 2 : 1)) return leaveSubmap()
     closeOverview("")
     finishOverviewClose()
-    windows = candidates()
-    Hyprland.refreshToplevels()
-    if (windows.length === 0) return
+    windows = found
     const active = windows.findIndex(t => t.address === activeAddress())
     selected = active >= 0
       ? (active + step + windows.length) % windows.length
@@ -310,6 +362,8 @@ ShellRoot {
   }
 
   Variants {
+    id: overviews
+
     model: Quickshell.screens
 
     Overview {
@@ -321,11 +375,23 @@ ShellRoot {
       closing: root.closing
       expanded: root.overviewExpanded
       fading: root.overviewFading
-      keyboard: visible && (config.overview.monitors !== "all" || modelData.name === Hyprland.focusedMonitor?.name)
+      keyboard: visible && (config.overview.monitors !== "all" || modelData.name === root.keyboardScreen)
       settings: config
       colors: theme
+      dragWindow: root.dragWindow
+      dragPoint: root.dragPoint
+      layoutName: root.layoutName
       onDismissed: root.closeOverview("")
       onWindowCloseRequested: toplevel => root.closeWindow(toplevel)
+      onWindowDragged: (toplevel, x, y) => {
+        root.dragPoint = Qt.point(x, y)
+        root.dragWindow = toplevel
+      }
+      onWindowDropped: root.dropWindow()
+      onDragCancelled: {
+        root.dragWindow = null
+        keyboardHold.restart()
+      }
       onWindowChosen: toplevel => {
         const visibleNow = toplevel.workspace === toplevel.monitor?.activeWorkspace
         root.closeOverview(root.focusWindowRequest(toplevel), !visibleNow)
@@ -399,7 +465,7 @@ ShellRoot {
             selected: index === root.selected
             capturing: root.open && !root.closing.includes(modelData.address)
             thumbnailWidth: panel.thumbnailWidth
-            showWorkspace: config.scope !== "workspace"
+            showWorkspace: root.windows.some(t => t.workspace !== root.windows[0].workspace)
             settings: config
             colors: theme
             onHovered: root.selected = index
@@ -407,7 +473,7 @@ ShellRoot {
             onActivated: {
               root.selected = index
               root.commit()
-              Hyprland.dispatch(`hl.dsp.submap("reset")`)
+              root.leaveSubmap()
             }
           }
         }

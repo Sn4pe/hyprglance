@@ -16,11 +16,22 @@ Rectangle {
   signal hovered
   signal activated
   signal closeRequested
+  signal dragMoved(real x, real y)
+  signal dragFinished
+  signal dragCancelled
 
   property int thumbnailHeight: Math.round(thumbnailWidth * 9 / 16)
   property bool exactFrame: false
   property real chromeOpacity: 1
   property bool showWorkspace: false
+  property bool draggable: false
+  property bool dragging: false
+  property bool dragged: false
+  property point pressPoint
+  readonly property bool settled: preview.hasContent
+    && Math.abs(preview.implicitWidth / preview.implicitHeight - thumbnailWidth / thumbnailHeight) < 0.05
+
+  Component.onDestruction: if (dragging) dragCancelled()
 
   width: frame.width + 12
   height: content.height + 12
@@ -109,8 +120,37 @@ Rectangle {
   MouseArea {
     anchors.fill: parent
     hoverEnabled: true
-    onPositionChanged: tile.hovered()
+    preventStealing: tile.draggable
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-    onClicked: mouse => mouse.button === Qt.MiddleButton ? tile.closeRequested() : tile.activated()
+    onPressed: mouse => {
+      tile.pressPoint = Qt.point(mouse.x, mouse.y)
+      tile.dragged = false
+    }
+    onPositionChanged: mouse => {
+      const distance = Math.hypot(mouse.x - tile.pressPoint.x, mouse.y - tile.pressPoint.y)
+      if (tile.draggable && (mouse.buttons & Qt.LeftButton) && (tile.dragging || distance >= Qt.styleHints.startDragDistance)) {
+        tile.dragging = true
+        tile.dragged = true
+        const point = mapToItem(null, mouse.x, mouse.y)
+        tile.dragMoved(point.x, point.y)
+      } else {
+        tile.hovered()
+      }
+    }
+    onReleased: {
+      if (!tile.dragging) return
+      tile.dragging = false
+      tile.dragFinished()
+    }
+    onCanceled: {
+      if (!tile.dragging) return
+      tile.dragging = false
+      tile.dragCancelled()
+    }
+    onClicked: mouse => {
+      if (tile.dragged) return
+      if (mouse.button === Qt.MiddleButton) tile.closeRequested()
+      else tile.activated()
+    }
   }
 }
