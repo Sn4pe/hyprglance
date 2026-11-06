@@ -71,6 +71,7 @@ dofile(os.getenv("HOME") .. "/src/hyprglance/hyprglance.lua").setup()
 ### Switcher
 
 - `Super + Tab` / `Super + Shift + Tab`: open, then move forward or back. Hold `Tab` to keep moving
+- `Super` + the key left of `1`, with `Shift` to go back: the same, only with windows of the current app. Does nothing if the app has one window
 - Release `Super`: switch to the selected window
 - Click: switch to that window
 - Middle click or `Super + Q`: close the window
@@ -80,6 +81,7 @@ dofile(os.getenv("HOME") .. "/src/hyprglance/hyprglance.lua").setup()
 
 - `F3`: open or close
 - Click a window or a workspace to go there, or anywhere else to close
+- Drag a window onto a workspace or another monitor to move it there. Empty workspaces appear while you drag
 - Number keys: go to a workspace
 - `Left` / `Right`, then `Enter`: pick a workspace
 - `Tab` / `Shift + Tab`, then `Enter`: pick a window
@@ -93,7 +95,6 @@ dofile(os.getenv("HOME") .. "/src/hyprglance/hyprglance.lua").setup()
 ## Roadmap
 
 - A settings window
-- Dragging windows between workspaces in the overview
 - Support for `hyprland.conf`
 
 ## License

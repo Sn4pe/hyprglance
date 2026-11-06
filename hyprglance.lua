@@ -35,6 +35,8 @@ function M.setup(opts)
   local timeout = opts.timeout or 30000
   local overviewKey = opts.overviewKey == nil and "F3" or opts.overviewKey
   local closeKey = opts.closeKey == nil and "Q" or opts.closeKey
+  -- The key left of 1, whose keysym changes with the layout
+  local appKey = opts.appKey == nil and "code:49" or opts.appKey
 
   local released = {}
   for _, code in ipairs(keycodes) do
@@ -48,6 +50,10 @@ function M.setup(opts)
     hl.bind("Escape", function() close("cancel") end)
     if closeKey then
       hl.bind(mod .. " + " .. closeKey, function() send("close") end)
+    end
+    if appKey then
+      hl.bind(mod .. " + " .. appKey, function() send("app-next") end, { repeating = true })
+      hl.bind(mod .. " + SHIFT + " .. appKey, function() send("app-prev") end, { repeating = true })
     end
   end)
 
@@ -69,6 +75,10 @@ function M.setup(opts)
 
   hl.bind(mod .. " + " .. key, function() open("next") end)
   hl.bind(mod .. " + SHIFT + " .. key, function() open("prev") end)
+  if appKey then
+    hl.bind(mod .. " + " .. appKey, function() open("app-next") end)
+    hl.bind(mod .. " + SHIFT + " .. appKey, function() open("app-prev") end)
+  end
 
   hl.layer_rule({ name = "hyprglance-overview", match = { namespace = "^hyprglance-overview$" }, blur = true })
 
